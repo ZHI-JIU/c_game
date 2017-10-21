@@ -1,0 +1,404 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <curses.h>
+#include <time.h>
+#include <unistd.h>
+#include <signal.h>
+
+// 游戏主界面是一个 4*4 的 16 宫格，使用二维数组进行表示，用 0 表示空格
+int a[4][4] = {0};
+// 16 宫格中空格的个数
+int empty;
+int old_y, old_x;
+
+void draw();  // 用于绘制游戏界面
+void play();  // 游戏运行的逻辑主体
+void init();  // 初始化函数，用于完成一些必要的初始化操作
+void draw_one(int y, int x);  // 绘制单个数字
+void cnt_value(int *new_y, int *new_x);  // 
+int game_over();  // 结束游戏
+int cnt_one(int y, int x); 
+
+int main()
+{
+    init();
+    play();
+    endwin();   //关闭游戏窗口
+
+    return 0;
+}
+
+void init()
+{
+    int x, y;
+
+    initscr();        //ncurses库中的函数，初始化终端，并且清屏
+    cbreak();       //用来关闭行缓冲以使按键可以马上被程序处理, cbreak()可以在按 Ctrl-C 的时候退出程序
+    noecho();       //按键回显,noecho关闭回显
+    curs_set(0);
+
+    empty = 15;       //放第一个方块
+    srand(time(0));
+    x = rand() % 4;   //随机初始化
+    y = rand() % 4;
+    a[y][x] = 2;
+    draw();
+}
+
+void draw()
+{
+    int n, m, x, y;
+    char c[4] = {'0', '0', '0', '0'};
+
+    clear();
+    for(n = 0; n < 9; n += 2)   //绘制横线，n代表行，m代表列 这些数字9,21自己合理安排
+        for(m = 0; m < 21; m++) 
+        {
+            move(n, m);     //ncurses中，移动光标到n，m位置
+            addch('-');     //ncurses中，输出字符
+            refresh();
+        }
+    for(m = 0; m < 22; m += 5)  //绘制竖线
+        for(n = 1; n < 8; n++) 
+        {
+            move(n, m);
+            addch('|');
+            refresh();  //刷新物理屏幕
+        }
+    for(y = 0; y < 4; y++)     //绘制数字
+        for(x = 0; x < 4; x++) 
+        {
+            draw_one(y, x);
+        }
+}
+
+void draw_one(int y, int x)
+{
+    int i, m, k, j;
+    char c[5] = {0x00};     //用来存a[y][x]中的各个位 
+    i = a[y][x];
+    m = 0;
+    while(i > 0)
+    {
+        j = i % 10;
+        c[m++] = j + '0';
+        i = i / 10;
+    }
+    m = 0;
+    k = (x + 1) * 5 - 1;
+    while(c[m] != 0x00)     //输出各个位
+    {
+        move(2*y+1, k);
+        addch(c[m++]);
+        k--;
+    }
+}
+
+void play()
+{
+    int x, y, i, new_x, new_y, temp;
+    int old_empty, move;
+    char ch;
+
+    while(1) 
+    {
+        move = 0;     //用来标记是否发生移动
+        old_empty = empty;
+        ch = getch(); 
+        switch(ch) {
+            case 97:    //左移  a
+            case 104:   // h
+            case 68:    // 左移方向键
+                for(y = 0; y < 4; y++)  //左移操作下的数字合并
+                    for(x = 0; x < 4; ) 
+                    {
+                        if(a[y][x] == 0)  //a[y][x]为零时跳过处理下一个格子中的数
+                        {
+                            x++;
+                            continue;
+                        } 
+                        else 
+                        {
+                            for(i = x + 1; i < 4; i++) 
+                            {
+                                if(a[y][i] == 0)  //a[y][x]不为零，但它右边没有数时跳过处理下一个格子
+                                {
+                                    continue;
+                                }
+                                else 
+                                {
+                                    if(a[y][x] == a[y][i])  //a[y][x]不为零,右边有数，且两者相等，合并两个数，更新空位值
+                                    {
+                                        a[y][x] += a[y][i];
+                                        a[y][i] = 0;
+                                        empty++;
+                                        break;
+                                    }
+                                    else      //a[y][x]不为零,右边有数，但两者不相等，直接处理下一个格子
+                                    {
+                                        break;
+                                    }
+                                }
+                            }
+                            x = i;
+                        }
+                    }
+                    
+                for(y = 0; y < 4; y++)    //左移操作下的数字移动 
+                    for(x = 0; x < 4; x++) 
+                    {
+                        if(a[y][x] == 0) 
+                        {
+                            continue;
+                        } 
+                        else 
+                        {
+                            for(i = x; (i > 0) && (a[y][i-1] == 0); i--) 
+                            {
+                                a[y][i-1] = a[y][i];
+                                a[y][i] = 0;
+                                move = 1;
+                            }
+                        }
+                    }
+                break;
+            case 100:   //右移 d 
+            case 108:   // l
+            case 67:    //右移方向键
+                for(y = 0; y < 4; y++)
+                    for(x = 3; x >= 0; ) 
+                    {
+                        if(a[y][x] == 0) 
+                        {
+                            x--;
+                            continue;
+                        } 
+                        else 
+                        {
+                            for(i = x - 1; i >= 0; i--)
+                            {
+                                if(a[y][i] == 0)
+                                {
+                                    continue;
+                                } 
+                                else if(a[y][x] == a[y][i]) 
+                                {
+                                    a[y][x] += a[y][i];
+                                    a[y][i] = 0;
+                                    empty++;
+                                    break;
+                                } 
+                                else 
+                                {
+                                    break;
+                                }
+                            }
+                            x = i;
+                        }
+                    }
+                for(y = 0; y < 4; y++)
+                    for(x = 3; x >= 0; x--) 
+                    {
+                        if(a[y][x] == 0) 
+                        {
+                            continue;
+                        } else 
+                        {
+                            for(i = x; (i < 3) && (a[y][i+1] == 0); i++) 
+                            {
+                                a[y][i+1] = a[y][i];
+                                a[y][i] = 0;
+                                move = 1;
+                            }
+                        }
+                    }
+                break;
+            case 119:   //上移 w 
+            case 107:   //k
+            case 65:    //上移方向键
+                for(x = 0; x < 4; x++)
+                    for(y = 0; y < 4; ) 
+                    {
+                        if(a[y][x] == 0)
+                        {
+                            y++;
+                            continue;
+                        } 
+                        else 
+                        {
+                            for(i = y + 1; i < 4; i++) 
+                            {
+                                if(a[i][x] == 0) 
+                                {
+                                    continue;
+                                } 
+                                else if(a[y][x] == a[i][x]) 
+                                {
+                                    a[y][x] += a[i][x];
+                                    a[i][x] = 0;
+                                    empty++;
+                                    break;
+                                } else 
+                                {
+                                    break;
+                                }
+                            }
+                            y = i;
+                        }
+                    }
+                for(x = 0; x < 4; x++)
+                    for(y = 0; y < 4; y++) 
+                    {
+                        if(a[y][x] == 0) 
+                        {
+                            continue;
+                        } 
+                        else
+                        {
+                            for(i = y; (i > 0) && (a[i-1][x] == 0); i--) 
+                            {
+                                a[i-1][x] = a[i][x];
+                                a[i][x] = 0;
+                                move = 1;
+                            }
+                        }
+                    }
+                break;
+            case 115:   //下移 s 
+            case 106:   //j
+            case 66:    //下移方向键
+                for(x = 0; x < 4; x++)
+                    for(y = 3; y >= 0; ) 
+                    {
+                        if(a[y][x] == 0) 
+                        {
+                            y--;
+                            continue;
+                        } 
+                        else 
+                        {
+                            for(i = y - 1; i >= 0; i--) 
+                            {
+                                if(a[i][x] == 0) 
+                                {
+                                    continue;
+                                } 
+                                else if(a[y][x] == a[i][x])
+                                {
+                                    a[y][x] += a[i][x];
+                                    a[i][x] = 0;
+                                    empty++;
+                                    break;
+                                } 
+                                else
+                                {
+                                    break;
+                                }
+                            }
+                            y = i;
+                        }
+                    }
+                for(x = 0; x < 4; x++)
+                    for(y = 3; y >= 0; y--) 
+                    {
+                        if(a[y][x] == 0) 
+                        {
+                            continue;
+                        } 
+                        else 
+                        {
+                            for(i = y; (i < 3) && (a[i+1][x] == 0); i++) 
+                            {
+                                a[i+1][x] = a[i][x];
+                                a[i][x] = 0;
+                                move = 1;
+                            }
+                        }
+                    }
+                break;
+            case 'Q':
+            case 'q':
+                game_over();
+                break;
+            default:
+                continue;
+                break;
+        }
+        if(empty <= 0)
+            game_over();
+        if((empty != old_empty) || (move == 1))     //为什么要标记move！ 有时候玩家虽然向左滑，但是这个操作不可行时，默认读入无效数字
+        { 
+            do{
+                new_x = rand() % 4;
+                new_y = rand() % 4;
+            }while(a[new_y][new_x] != 0);       //找一个空位放新产生的数字
+
+            cnt_value(&new_y, &new_x);      //？？？
+
+            do {
+                temp = rand() % 4;
+            }while(temp == 0 || temp == 2);     //产生1或3的temp值
+            a[new_y][new_x] = temp + 1;         //给新数字赋值，2或4
+            empty--;
+        }
+        draw();
+    }
+}
+
+void cnt_value(int *new_y, int *new_x)
+{
+    int max_x, max_y, x, y, value;
+    int max = 0;
+
+    max = cnt_one(*new_y, *new_x);
+    for(y = 0; y < 4; y++)
+        for(x = 0; x < 4; x++) 
+        {
+            // 如果(y, x)对应的空格不为空
+            if(!a[y][x]) 
+            {
+                // 优先选取周围空格最多的空格展示新数字
+                value = cnt_one(y, x);
+                if(value > max && old_y != y && old_x != x) 
+                {  
+                    // 避免在同一位置反复出现新数字
+                    *new_y = y;
+                    *new_x = x;
+                    old_x = x;
+                    old_y = y;
+                    break;
+                }
+            }
+        }
+}
+
+int cnt_one(int y, int x)
+{
+    int value = 0;
+
+    if(y - 1 > 0)  
+        a[y-1][x] ? 0 : value++;
+    if(y + 1 < 4)
+        a[y+1][x] ? 0 : value++;
+    if(x - 1 >= 0)
+        a[y][x-1] ? 0 : value++;
+    if(x + 1 < 4)
+        a[y][x+1] ? 0 : value++;
+    if(y - 1 >= 0 && x - 1 >= 0)
+        a[y-1][x-1] ? 0 : value++;
+    if(y - 1 >= 0 && x + 1 < 4)
+        a[y-1][x+1] ? 0 : value++;
+    if(y + 1 < 4 && x - 1 >= 0)
+        a[y+1][x-1] ? 0 : value++;
+    if(y + 1 < 4 && x + 1 < 4)
+        a[y+1][x+1] ? 0 : value++;
+
+    return value;
+}
+
+int game_over()
+{
+    sleep(1);
+    endwin();
+    exit(0);
+}
