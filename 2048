@@ -333,7 +333,7 @@ void play()
                 new_y = rand() % 4;
             }while(a[new_y][new_x] != 0);       //找一个空位放新产生的数字
 
-            cnt_value(&new_y, &new_x);      //？？？
+            cnt_value(&new_y, &new_x);      //修正新位置，选周围较空的地方放新数字
 
             do {
                 temp = rand() % 4;
@@ -354,7 +354,7 @@ void cnt_value(int *new_y, int *new_x)
     for(y = 0; y < 4; y++)
         for(x = 0; x < 4; x++) 
         {
-            // 如果(y, x)对应的空格不为空
+            // 如果(y, x)对应的空格为空
             if(!a[y][x]) 
             {
                 // 优先选取周围空格最多的空格展示新数字
